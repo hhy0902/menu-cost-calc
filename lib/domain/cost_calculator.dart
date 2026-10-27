@@ -10,6 +10,7 @@ class CostLine {
     required this.unitLabel,
     required this.cost,
     required this.missing,
+    required this.channelIds,
   });
 
   final String name;
@@ -17,6 +18,9 @@ class CostLine {
   final String unitLabel;
   final double cost;
   final bool missing; // 재료가 삭제된 경우 true
+  final List<String> channelIds; // 비어 있으면 모든 채널 공통
+
+  bool appliesTo(String channelId) => channelIds.isEmpty || channelIds.contains(channelId);
 }
 
 class MenuCost {
@@ -27,24 +31,37 @@ class MenuCost {
   final bool vatIncluded;
 
   /// 부가세를 뺀 실제 매출(공급가액). 부가세 미포함이면 판매가 그대로.
-  double get netPrice =>
-      vatIncluded ? menu.price / (1 + CostCalculator.vatRate) : menu.price.toDouble();
+  double netOf(int price) =>
+      vatIncluded ? price / (1 + CostCalculator.vatRate) : price.toDouble();
+  double get netPrice => netOf(menu.price);
   double get vat => menu.price - netPrice;
 
-  double get total => lines.fold<double>(0, (sum, l) => sum + l.cost);
+  /// 모든 채널 공통 원가. 대시보드 원가율과 적정 판매가는 이 값 기준.
+  double get total => _sum((l) => l.channelIds.isEmpty);
+
+  /// 공통 원가 + 이 채널에만 드는 부자재
+  double costFor(String channelId) => _sum((l) => l.appliesTo(channelId));
+
   double get costRate => netPrice <= 0 ? 0 : total / netPrice;
   bool get hasMissing => lines.any((l) => l.missing);
+
+  double _sum(bool Function(CostLine) test) =>
+      lines.where(test).fold<double>(0, (sum, l) => sum + l.cost);
 }
 
 class ChannelProfit {
   const ChannelProfit({
     required this.channel,
+    required this.price,
+    required this.extraCost,
     required this.fee,
     required this.net,
     required this.netRate,
   });
 
   final SalesChannel channel;
+  final int price; // 이 채널 판매가
+  final double extraCost; // 이 채널에만 드는 부자재 원가
   final double fee; // 수수료 금액
   final double net; // 순이익
   final double netRate; // 순이익률
@@ -69,6 +86,7 @@ class CostCalculator {
           unitLabel: '',
           cost: 0,
           missing: true,
+          channelIds: item.channelIds,
         );
       }
       return CostLine(
@@ -77,20 +95,26 @@ class CostCalculator {
         unitLabel: ing.unit.label,
         cost: ing.unitCost * item.amount,
         missing: false,
+        channelIds: item.channelIds,
       );
     }).toList();
     return MenuCost(menu: menu, lines: lines, vatIncluded: vatIncluded);
   }
 
   static ChannelProfit profit(MenuCost cost, SalesChannel channel) {
+    final price = cost.menu.priceFor(channel.id);
+    final netPrice = cost.netOf(price);
     // 수수료는 고객이 낸 금액(부가세 포함 판매가) 전체에 붙는다
-    final fee = cost.menu.price * channel.feeRate;
-    final net = cost.netPrice - fee - cost.total;
+    final fee = price * channel.feeRate;
+    final channelCost = cost.costFor(channel.id);
+    final net = netPrice - fee - channelCost;
     return ChannelProfit(
       channel: channel,
+      price: price,
+      extraCost: channelCost - cost.total,
       fee: fee,
       net: net,
-      netRate: cost.netPrice <= 0 ? 0 : net / cost.netPrice,
+      netRate: netPrice <= 0 ? 0 : net / netPrice,
     );
   }
 

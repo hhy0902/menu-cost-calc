@@ -13,10 +13,11 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _ChannelRow {
-  _ChannelRow(String name, double feeRate)
+  _ChannelRow(this.id, String name, double feeRate)
       : nameCtrl = TextEditingController(text: name),
         feeCtrl = TextEditingController(text: rateInput(feeRate));
 
+  final String id; // 이름을 바꿔도 메뉴의 채널별 판매가·부자재 연결이 유지되도록
   final TextEditingController nameCtrl;
   final TextEditingController feeCtrl;
 
@@ -41,7 +42,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _warningCtrl.text = rateInput(s.warningRate);
     _targetCtrl.text = rateInput(s.targetRate);
     _vatIncluded = s.vatIncluded;
-    _channels.addAll(s.channels.map((c) => _ChannelRow(c.name, c.feeRate)));
+    _channels.addAll(s.channels.map((c) => _ChannelRow(c.id, c.name, c.feeRate)));
   }
 
   @override
@@ -70,7 +71,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       vatIncluded: _vatIncluded,
       channels: [
         for (final c in _channels)
-          SalesChannel(name: c.nameCtrl.text.trim(), feeRate: _rate(c.feeCtrl)),
+          SalesChannel(id: c.id, name: c.nameCtrl.text.trim(), feeRate: _rate(c.feeCtrl)),
       ],
     );
     // 서버 확인을 기다리면 오프라인에서 멈추므로 기다리지 않는다 (로컬에는 바로 반영됨)
@@ -142,7 +143,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     Expanded(child: Text('판매 채널', style: theme.textTheme.titleMedium)),
                     TextButton.icon(
-                      onPressed: () => setState(() => _channels.add(_ChannelRow('', 0))),
+                      onPressed: () => setState(() => _channels.add(_ChannelRow(
+                          DateTime.now().microsecondsSinceEpoch.toString(), '', 0))),
                       icon: const Icon(Icons.add),
                       label: const Text('채널 추가'),
                     ),

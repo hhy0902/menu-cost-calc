@@ -1,15 +1,20 @@
 class SalesChannel {
-  const SalesChannel({required this.name, required this.feeRate});
+  const SalesChannel({required this.id, required this.name, required this.feeRate});
 
+  final String id; // 메뉴의 채널별 판매가·레시피 적용 채널이 이 값을 가리킨다
   final String name;
   final double feeRate; // 0.1 = 10%
 
-  factory SalesChannel.fromMap(Map<String, dynamic> m) => SalesChannel(
-        name: m['name'] as String? ?? '',
-        feeRate: (m['feeRate'] as num?)?.toDouble() ?? 0,
-      );
+  factory SalesChannel.fromMap(Map<String, dynamic> m) {
+    final name = m['name'] as String? ?? '';
+    return SalesChannel(
+      id: m['id'] as String? ?? name, // id가 없던 이전 데이터는 이름을 id로 쓴다
+      name: name,
+      feeRate: (m['feeRate'] as num?)?.toDouble() ?? 0,
+    );
+  }
 
-  Map<String, dynamic> toMap() => {'name': name, 'feeRate': feeRate};
+  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'feeRate': feeRate};
 }
 
 class AppSettings {
@@ -28,8 +33,8 @@ class AppSettings {
   /// 설정 문서가 아직 없을 때 쓰는 예시 기본값
   static const defaults = AppSettings(
     channels: [
-      SalesChannel(name: '매장', feeRate: 0),
-      SalesChannel(name: '배달앱', feeRate: 0.1),
+      SalesChannel(id: '매장', name: '매장', feeRate: 0),
+      SalesChannel(id: '배달앱', name: '배달앱', feeRate: 0.1),
     ],
     warningRate: 0.35,
     targetRate: 0.30,

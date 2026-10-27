@@ -75,7 +75,9 @@ class MenuDetailScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           Text('재료별 원가', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          for (final line in cost.lines) _CostLineTile(line: line, total: cost.total),
+          // 채널 전용 부자재는 아래 채널별 순이익에 합쳐 보여준다
+          for (final line in cost.lines)
+            if (line.channelIds.isEmpty) _CostLineTile(line: line, total: cost.total),
           const SizedBox(height: 24),
           Text('채널별 순이익', style: theme.textTheme.titleMedium),
           for (final ch in settings.channels)
@@ -176,7 +178,11 @@ class _ChannelTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(profit.channel.name),
-      subtitle: Text('수수료 ${percent(profit.channel.feeRate)} · ${won(profit.fee)}'),
+      subtitle: Text([
+        '판매가 ${won(profit.price)}',
+        '수수료 ${percent(profit.channel.feeRate)} · ${won(profit.fee)}',
+        if (profit.extraCost > 0) '부자재 ${won(profit.extraCost)}',
+      ].join('\n')),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,

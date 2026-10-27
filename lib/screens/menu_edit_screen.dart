@@ -18,11 +18,13 @@ class MenuEditScreen extends ConsumerStatefulWidget {
 }
 
 class _RecipeRow {
-  _RecipeRow([this.ingredientId, String amount = ''])
-      : amountCtrl = TextEditingController(text: amount);
+  _RecipeRow([this.ingredientId, String amount = '', Iterable<String> channelIds = const []])
+      : amountCtrl = TextEditingController(text: amount),
+        channelIds = {...channelIds};
 
   String? ingredientId;
   final TextEditingController amountCtrl;
+  final Set<String> channelIds; // 비어 있으면 모든 채널
 }
 
 class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
@@ -31,8 +33,9 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
   late final _priceCtrl = TextEditingController(text: widget.menu?.price.toString() ?? '');
   late final List<_RecipeRow> _rows = [
     for (final r in widget.menu?.recipe ?? const <RecipeItem>[])
-      _RecipeRow(r.ingredientId, amountText(r.amount)),
+      _RecipeRow(r.ingredientId, amountText(r.amount), r.channelIds),
   ];
+  final Map<String, TextEditingController> _channelPriceCtrls = {}; // 채널 id -> 입력칸
   bool _saving = false;
 
   bool get _isNew => widget.menu == null;
@@ -44,7 +47,31 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
     for (final r in _rows) {
       r.amountCtrl.dispose();
     }
+    for (final c in _channelPriceCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  /// 채널 목록은 설정이 도착한 뒤에 알 수 있어서 입력칸을 필요할 때 만든다
+  TextEditingController _channelPriceCtrl(String channelId) => _channelPriceCtrls.putIfAbsent(
+        channelId,
+        () => TextEditingController(
+            text: widget.menu?.channelPrices[channelId]?.toString() ?? ''),
+      );
+
+  Map<String, int> _channelPrices() {
+    // 화면에 없는 채널(아직 설정을 못 받았거나 삭제된 채널)의 기존 값은 그대로 둔다
+    final prices = {...?widget.menu?.channelPrices};
+    for (final e in _channelPriceCtrls.entries) {
+      final p = int.tryParse(e.value.text.replaceAll(',', '').trim());
+      if (p == null || p <= 0) {
+        prices.remove(e.key);
+      } else {
+        prices[e.key] = p;
+      }
+    }
+    return prices;
   }
 
   Menu _buildMenu() => Menu(
@@ -57,8 +84,10 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
               RecipeItem(
                 ingredientId: r.ingredientId!,
                 amount: double.tryParse(r.amountCtrl.text.trim()) ?? 0,
+                channelIds: r.channelIds.toList(),
               ),
         ],
+        channelPrices: _channelPrices(),
       );
 
   void _removeRow(int index) {
@@ -104,10 +133,11 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
   @override
   Widget build(BuildContext context) {
     final ingredients = ref.watch(ingredientsProvider).asData?.value ?? const <Ingredient>[];
-    final vatIncluded =
-        (ref.watch(settingsProvider).asData?.value ?? AppSettings.defaults).vatIncluded;
+    final settings = ref.watch(settingsProvider).asData?.value ?? AppSettings.defaults;
+    final channels = settings.channels;
     final byId = {for (final i in ingredients) i.id: i};
-    final preview = CostCalculator.calculate(_buildMenu(), byId, vatIncluded: vatIncluded);
+    final preview =
+        CostCalculator.calculate(_buildMenu(), byId, vatIncluded: settings.vatIncluded);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -143,6 +173,24 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
               },
               onChanged: (_) => setState(() {}),
             ),
+            const SizedBox(height: 16),
+            Text('채널별 판매가 (비우면 기본 판매가)', style: theme.textTheme.bodySmall),
+            for (final ch in channels)
+              TextFormField(
+                key: ValueKey('price-${ch.id}'),
+                controller: _channelPriceCtrl(ch.id),
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: ch.name,
+                  hintText: _priceCtrl.text,
+                  suffixText: '원',
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  final p = int.tryParse(v.replaceAll(',', '').trim());
+                  return (p == null || p <= 0) ? '0보다 크게 입력하거나 비우세요' : null;
+                },
+              ),
             const SizedBox(height: 24),
             Text('레시피', style: theme.textTheme.titleMedium),
             if (ingredients.isEmpty)
@@ -150,7 +198,7 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text('먼저 식자재 탭에서 재료를 등록하세요.'),
               ),
-            for (var i = 0; i < _rows.length; i++) _buildRow(i, ingredients, byId),
+            for (var i = 0; i < _rows.length; i++) _buildRow(i, ingredients, byId, channels),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
@@ -164,6 +212,9 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
             Card(
               child: ListTile(
                 title: Text('예상 원가 ${won(preview.total)}'),
+                subtitle: _rows.any((r) => r.channelIds.isNotEmpty)
+                    ? const Text('채널 전용 부자재는 상세 화면의 채널별 순이익에 반영')
+                    : null,
                 trailing: Text(
                   '원가율 ${percent(preview.costRate)}',
                   style: theme.textTheme.titleMedium,
@@ -185,50 +236,76 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
     );
   }
 
-  Widget _buildRow(int index, List<Ingredient> ingredients, Map<String, Ingredient> byId) {
+  Widget _buildRow(int index, List<Ingredient> ingredients, Map<String, Ingredient> byId,
+      List<SalesChannel> channels) {
     final row = _rows[index];
     final selected = byId[row.ingredientId];
     return Padding(
       key: ObjectKey(row), // 줄을 지워도 다른 줄의 입력 상태가 섞이지 않게
       padding: const EdgeInsets.only(top: 8),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 3,
-            child: DropdownButtonFormField<String>(
-              initialValue: selected?.id, // 삭제된 재료면 null -> 다시 선택
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: '재료'),
-              items: [
-                for (final g in ingredients)
-                  DropdownMenuItem(value: g.id, child: Text('${g.name} (${g.unit.label})')),
-              ],
-              onChanged: (v) => setState(() => row.ingredientId = v),
-              validator: (v) => v == null ? '재료를 선택하세요' : null,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: TextFormField(
-              controller: row.amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: '사용량', suffixText: selected?.unit.label),
-              validator: (v) {
-                final a = double.tryParse((v ?? '').trim());
-                return (a == null || a <= 0) ? '0보다 크게' : null;
-              },
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-          IconButton(
-            tooltip: '이 재료 빼기',
-            icon: const Icon(Icons.remove_circle_outline),
-            onPressed: () => _removeRow(index),
+          _buildRowFields(index, row, ingredients, selected),
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(row.channelIds.isEmpty ? '모든 채널' : '선택한 채널만',
+                  style: Theme.of(context).textTheme.bodySmall),
+              for (final ch in channels)
+                FilterChip(
+                  label: Text(ch.name),
+                  selected: row.channelIds.contains(ch.id),
+                  onSelected: (on) => setState(
+                      () => on ? row.channelIds.add(ch.id) : row.channelIds.remove(ch.id)),
+                ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildRowFields(
+      int index, _RecipeRow row, List<Ingredient> ingredients, Ingredient? selected) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 3,
+          child: DropdownButtonFormField<String>(
+            initialValue: selected?.id, // 삭제된 재료면 null -> 다시 선택
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: '재료'),
+            items: [
+              for (final g in ingredients)
+                DropdownMenuItem(value: g.id, child: Text('${g.name} (${g.unit.label})')),
+            ],
+            onChanged: (v) => setState(() => row.ingredientId = v),
+            validator: (v) => v == null ? '재료를 선택하세요' : null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 2,
+          child: TextFormField(
+            controller: row.amountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: '사용량', suffixText: selected?.unit.label),
+            validator: (v) {
+              final a = double.tryParse((v ?? '').trim());
+              return (a == null || a <= 0) ? '0보다 크게' : null;
+            },
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        IconButton(
+          tooltip: '이 재료 빼기',
+          icon: const Icon(Icons.remove_circle_outline),
+          onPressed: () => _removeRow(index),
+        ),
+      ],
     );
   }
 }
