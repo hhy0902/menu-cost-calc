@@ -83,7 +83,7 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
             if (r.ingredientId != null)
               RecipeItem(
                 ingredientId: r.ingredientId!,
-                amount: double.tryParse(r.amountCtrl.text.trim()) ?? 0,
+                amount: double.tryParse(r.amountCtrl.text.replaceAll(',', '').trim()) ?? 0,
                 channelIds: r.channelIds.toList(),
               ),
         ],
@@ -133,7 +133,8 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
   @override
   Widget build(BuildContext context) {
     final ingredients = ref.watch(ingredientsProvider).asData?.value ?? const <Ingredient>[];
-    final settings = ref.watch(settingsProvider).asData?.value ?? AppSettings.defaults;
+    final settingsAsync = ref.watch(settingsProvider);
+    final settings = settingsAsync.asData?.value ?? AppSettings.defaults;
     final channels = settings.channels;
     final byId = {for (final i in ingredients) i.id: i};
     final preview =
@@ -182,7 +183,9 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: ch.name,
-                  hintText: _priceCtrl.text,
+                  // 비어 있을 때도 기본가가 보이도록 라벨을 항상 위에 둔다
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  hintText: _priceCtrl.text.trim().isEmpty ? null : '기본 ${_priceCtrl.text.trim()}',
                   suffixText: '원',
                 ),
                 validator: (v) {
@@ -198,7 +201,8 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text('먼저 식자재 탭에서 재료를 등록하세요.'),
               ),
-            for (var i = 0; i < _rows.length; i++) _buildRow(i, ingredients, byId, channels),
+            for (var i = 0; i < _rows.length; i++)
+              _buildRow(i, ingredients, byId, channels, settingsAsync.hasValue),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
@@ -237,9 +241,13 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
   }
 
   Widget _buildRow(int index, List<Ingredient> ingredients, Map<String, Ingredient> byId,
-      List<SalesChannel> channels) {
+      List<SalesChannel> channels, bool channelsLoaded) {
     final row = _rows[index];
     final selected = byId[row.ingredientId];
+    bool exists(String id) => channels.any((c) => c.id == id);
+    // 선택한 채널이 모두 삭제되면 이 줄은 어느 채널 계산에도 들어가지 않는다
+    // (설정이 오기 전에는 기본 채널로 판단하게 되므로 경고하지 않는다)
+    final orphan = channelsLoaded && row.channelIds.isNotEmpty && !row.channelIds.any(exists);
     return Padding(
       key: ObjectKey(row), // 줄을 지워도 다른 줄의 입력 상태가 섞이지 않게
       padding: const EdgeInsets.only(top: 8),
@@ -257,11 +265,18 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
                 FilterChip(
                   label: Text(ch.name),
                   selected: row.channelIds.contains(ch.id),
-                  onSelected: (on) => setState(
-                      () => on ? row.channelIds.add(ch.id) : row.channelIds.remove(ch.id)),
+                  onSelected: (on) => setState(() {
+                    if (channelsLoaded) row.channelIds.removeWhere((id) => !exists(id));
+                    on ? row.channelIds.add(ch.id) : row.channelIds.remove(ch.id);
+                  }),
                 ),
             ],
           ),
+          if (orphan)
+            Text(
+              '삭제된 채널에만 적용되어 계산에서 빠집니다. 채널을 다시 고르세요.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
         ],
       ),
     );
@@ -294,7 +309,7 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(labelText: '사용량', suffixText: selected?.unit.label),
             validator: (v) {
-              final a = double.tryParse((v ?? '').trim());
+              final a = double.tryParse((v ?? '').replaceAll(',', '').trim());
               return (a == null || a <= 0) ? '0보다 크게' : null;
             },
             onChanged: (_) => setState(() {}),

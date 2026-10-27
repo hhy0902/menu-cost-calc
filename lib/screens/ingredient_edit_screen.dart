@@ -40,7 +40,7 @@ class _IngredientEditScreenState extends ConsumerState<IngredientEditScreen> {
         id: widget.ingredient?.id ?? '',
         name: _nameCtrl.text.trim(),
         unit: _unit,
-        purchaseAmount: double.tryParse(_amountCtrl.text.trim()) ?? 0,
+        purchaseAmount: double.tryParse(_amountCtrl.text.replaceAll(',', '').trim()) ?? 0,
         purchasePrice: int.tryParse(_priceCtrl.text.replaceAll(',', '').trim()) ?? 0,
       );
 
@@ -131,7 +131,7 @@ class _IngredientEditScreenState extends ConsumerState<IngredientEditScreen> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(labelText: '구매량', suffixText: _unit.label),
               validator: (v) {
-                final a = double.tryParse((v ?? '').trim());
+                final a = double.tryParse((v ?? '').replaceAll(',', '').trim());
                 return (a == null || a <= 0) ? '0보다 큰 값을 입력하세요' : null;
               },
               onChanged: (_) => setState(() {}),

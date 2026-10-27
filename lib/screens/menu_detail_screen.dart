@@ -26,6 +26,10 @@ class MenuDetailScreen extends ConsumerWidget {
     }
 
     final over = cost.costRate >= settings.warningRate;
+    final channelIds = {for (final c in settings.channels) c.id};
+    // 선택한 채널이 모두 삭제돼 어느 채널 순이익에도 들어가지 않는 부자재 줄
+    final hasOrphan = cost.lines
+        .any((l) => l.channelIds.isNotEmpty && !l.channelIds.any(channelIds.contains));
     final suggested = CostCalculator.suggestedPrice(cost.total, settings.targetRate,
         vatIncluded: cost.vatIncluded);
 
@@ -70,6 +74,14 @@ class MenuDetailScreen extends ConsumerWidget {
               child: const ListTile(
                 leading: Icon(Icons.warning_amber),
                 title: Text('삭제된 재료가 있습니다. 레시피를 수정하세요.'),
+              ),
+            ),
+          if (hasOrphan)
+            Card(
+              color: theme.colorScheme.errorContainer,
+              child: const ListTile(
+                leading: Icon(Icons.warning_amber),
+                title: Text('삭제된 채널에만 적용된 부자재가 있어 계산에서 빠졌습니다. 레시피를 수정하세요.'),
               ),
             ),
           const SizedBox(height: 24),
