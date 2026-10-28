@@ -93,13 +93,33 @@ class CostCalculator {
         name: ing.name,
         amount: item.amount,
         unitLabel: ing.unit.label,
-        cost: ing.unitCost * item.amount,
-        missing: false,
+        cost: unitCostOf(ing, ingredients) * item.amount,
+        missing: hasMissingIn(ing, ingredients), // 반제품 속 재료가 삭제되면 원가가 덜 잡힌다
         channelIds: item.channelIds,
       );
     }).toList();
     return MenuCost(menu: menu, lines: lines, vatIncluded: vatIncluded);
   }
+
+  /// 단위당 단가. 반제품이면 (레시피 재료비 합 ÷ 완성량).
+  /// 반제품 레시피에는 일반 재료만 들어가므로 한 단계만 계산한다.
+  static double unitCostOf(Ingredient ing, Map<String, Ingredient> ingredients) {
+    if (!ing.isPrepared) return ing.unitCost;
+    if (ing.purchaseAmount <= 0) return 0;
+    var batch = 0.0;
+    for (final item in ing.recipe) {
+      final sub = ingredients[item.ingredientId];
+      if (sub != null && !sub.isPrepared) batch += sub.unitCost * item.amount;
+    }
+    return batch / ing.purchaseAmount;
+  }
+
+  /// 반제품 레시피에 삭제됐거나(또는 쓸 수 없는 반제품인) 재료가 있으면 true
+  static bool hasMissingIn(Ingredient ing, Map<String, Ingredient> ingredients) =>
+      ing.recipe.any((item) {
+        final sub = ingredients[item.ingredientId];
+        return sub == null || sub.isPrepared;
+      });
 
   static ChannelProfit profit(MenuCost cost, SalesChannel channel) {
     final price = cost.menu.priceFor(channel.id);

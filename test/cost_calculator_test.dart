@@ -118,6 +118,70 @@ void main() {
     });
   });
 
+  group('반제품', () {
+    // 설탕 1000g 2,000원(2원/g), 청포도 1000g 10,000원(10원/g)
+    const sugar = Ingredient(
+        id: 'sugar', name: '설탕', unit: UnitType.g, purchaseAmount: 1000, purchasePrice: 2000);
+    const grape = Ingredient(
+        id: 'grape', name: '청포도', unit: UnitType.g, purchaseAmount: 1000, purchasePrice: 10000);
+    // 설탕 500g(1,000원) + 청포도 1000g(10,000원) -> 시럽 1200ml
+    const syrup = Ingredient(
+      id: 'syrup',
+      name: '청포도 시럽',
+      unit: UnitType.ml,
+      purchaseAmount: 1200,
+      purchasePrice: 0,
+      recipe: [
+        RecipeItem(ingredientId: 'sugar', amount: 500),
+        RecipeItem(ingredientId: 'grape', amount: 1000),
+      ],
+    );
+    const ade = Menu(id: 'ade', name: '청포도 에이드', price: 5000, recipe: [
+      RecipeItem(ingredientId: 'syrup', amount: 40),
+    ]);
+    final all = {sugar.id: sugar, grape.id: grape, syrup.id: syrup};
+
+    test('단위당 단가 = 레시피 재료비 ÷ 완성량', () {
+      expect(syrup.isPrepared, isTrue);
+      expect(CostCalculator.unitCostOf(syrup, all), closeTo(11000 / 1200, 1e-9));
+      expect(CostCalculator.unitCostOf(sugar, all), closeTo(2, 1e-9));
+    });
+
+    test('메뉴 원가에 반제품 단가가 들어간다', () {
+      final cost = CostCalculator.calculate(ade, all, vatIncluded: false);
+      expect(cost.total, closeTo(40 * 11000 / 1200, 1e-9));
+      expect(cost.hasMissing, isFalse);
+    });
+
+    test('재료값이 바뀌면 반제품을 쓰는 메뉴 원가도 바뀐다', () {
+      const pricier = Ingredient(
+          id: 'sugar', name: '설탕', unit: UnitType.g, purchaseAmount: 1000, purchasePrice: 4000);
+      final cost = CostCalculator.calculate(ade, {...all, 'sugar': pricier}, vatIncluded: false);
+      expect(cost.total, closeTo(40 * 12000 / 1200, 1e-9));
+    });
+
+    test('반제품 속 재료가 삭제되면 그만큼 빠지고 재료 확인 필요', () {
+      final cost =
+          CostCalculator.calculate(ade, {sugar.id: sugar, syrup.id: syrup}, vatIncluded: false);
+      expect(cost.total, closeTo(40 * 1000 / 1200, 1e-9));
+      expect(cost.hasMissing, isTrue);
+    });
+
+    test('반제품 안의 반제품은 계산하지 않고 재료 확인 필요', () {
+      const base = Ingredient(
+        id: 'base',
+        name: '에이드 베이스',
+        unit: UnitType.ml,
+        purchaseAmount: 100,
+        purchasePrice: 0,
+        recipe: [RecipeItem(ingredientId: 'syrup', amount: 100)],
+      );
+      final withBase = {...all, base.id: base};
+      expect(CostCalculator.unitCostOf(base, withBase), 0);
+      expect(CostCalculator.hasMissingIn(base, withBase), isTrue);
+    });
+  });
+
   test('적정 판매가가 딱 맞아떨어지면 한 단계 더 올리지 않음', () {
     // 900 / 0.3 * 1.1 = 3300.0000000000005
     expect(CostCalculator.suggestedPrice(900, 0.30, vatIncluded: true), 3300);

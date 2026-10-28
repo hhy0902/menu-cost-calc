@@ -83,3 +83,13 @@ final menusUsingIngredientProvider =
       if (m.recipe.any((r) => r.ingredientId == ingredientId)) m.name,
   ];
 });
+
+/// 재료를 레시피에 쓰는 반제품 이름 목록 (삭제 전 확인, 반제품 중첩 방지용)
+final preparedUsingIngredientProvider =
+    Provider.family<List<String>, String>((ref, ingredientId) {
+  final ingredients = ref.watch(ingredientsProvider).asData?.value ?? const <Ingredient>[];
+  return [
+    for (final g in ingredients)
+      if (g.recipe.any((r) => r.ingredientId == ingredientId)) g.name,
+  ];
+});
