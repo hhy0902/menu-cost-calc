@@ -45,6 +45,10 @@ class MenuCost {
   double get costRate => netPrice <= 0 ? 0 : total / netPrice;
   bool get hasMissing => lines.any((l) => l.missing);
 
+  /// 선택한 채널이 모두 삭제돼 어느 채널 순이익에도 들어가지 않는 부자재 줄이 있으면 true
+  bool hasOrphanLines(Set<String> channelIds) =>
+      lines.any((l) => l.channelIds.isNotEmpty && !l.channelIds.any(channelIds.contains));
+
   double _sum(bool Function(CostLine) test) =>
       lines.where(test).fold<double>(0, (sum, l) => sum + l.cost);
 }

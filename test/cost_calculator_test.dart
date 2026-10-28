@@ -127,6 +127,11 @@ void main() {
       expect(p.net, closeTo(5000 - 500 - 1110, 1e-9));
     });
 
+    test('부자재 줄의 채널이 모두 삭제되면 orphan', () {
+      expect(cost.hasOrphanLines({'store', 'delivery'}), isFalse);
+      expect(cost.hasOrphanLines({'store'}), isTrue); // delivery 삭제
+    });
+
     test('부가세 포함이면 채널 판매가도 ÷ 1.1', () {
       final vatCost = CostCalculator.calculate(
           deliveryLatte, {...byId, cup.id: cup}, vatIncluded: true);

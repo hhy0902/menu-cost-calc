@@ -14,8 +14,8 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final costsAsync = ref.watch(menuCostsProvider);
-    final warningRate =
-        ref.watch(settingsProvider).asData?.value.warningRate ?? AppSettings.defaults.warningRate;
+    final settings = ref.watch(settingsProvider).asData?.value ?? AppSettings.defaults;
+    final channelIds = {for (final c in settings.channels) c.id};
 
     return Scaffold(
       appBar: AppBar(title: const Text('메뉴 원가')),
@@ -44,8 +44,11 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             itemCount: sorted.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) =>
-                _MenuCostCard(cost: sorted[index], warningRate: warningRate),
+            itemBuilder: (context, index) => _MenuCostCard(
+              cost: sorted[index],
+              warningRate: settings.warningRate,
+              channelIds: channelIds,
+            ),
           );
         },
       ),
@@ -54,16 +57,18 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _MenuCostCard extends StatelessWidget {
-  const _MenuCostCard({required this.cost, required this.warningRate});
+  const _MenuCostCard({required this.cost, required this.warningRate, required this.channelIds});
 
   final MenuCost cost;
   final double warningRate;
+  final Set<String> channelIds;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final over = cost.costRate >= warningRate;
-    final missing = cost.hasMissing ? ' · 재료 확인 필요' : '';
+    final missing =
+        cost.hasMissing || cost.hasOrphanLines(channelIds) ? ' · 재료 확인 필요' : '';
 
     return Card(
       child: ListTile(

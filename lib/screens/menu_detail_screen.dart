@@ -27,10 +27,7 @@ class MenuDetailScreen extends ConsumerWidget {
     }
 
     final over = cost.costRate >= settings.warningRate;
-    final channelIds = {for (final c in settings.channels) c.id};
-    // 선택한 채널이 모두 삭제돼 어느 채널 순이익에도 들어가지 않는 부자재 줄
-    final hasOrphan = cost.lines
-        .any((l) => l.channelIds.isNotEmpty && !l.channelIds.any(channelIds.contains));
+    final hasOrphan = cost.hasOrphanLines({for (final c in settings.channels) c.id});
     final suggested = CostCalculator.suggestedPrice(cost.total, settings.targetRate,
         vatIncluded: cost.vatIncluded);
 
@@ -116,7 +113,7 @@ class MenuDetailScreen extends ConsumerWidget {
               title: Text('목표 원가율 ${percent(settings.targetRate)} 기준 적정 판매가'),
               subtitle: Text('현재 판매가 ${won(cost.menu.price)}'),
               trailing: Text(
-                won(suggested),
+                suggested == 0 ? '-' : won(suggested), // 레시피가 없으면 계산할 수 없다
                 style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
