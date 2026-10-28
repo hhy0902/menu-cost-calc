@@ -73,7 +73,7 @@ class MenuDetailScreen extends ConsumerWidget {
               color: theme.colorScheme.errorContainer,
               child: const ListTile(
                 leading: Icon(Icons.warning_amber),
-                title: Text('삭제된 재료가 있습니다. 레시피를 수정하세요.'),
+                title: Text('삭제된 재료가 있습니다. 메뉴 레시피나 반제품 레시피를 수정하세요.'),
               ),
             ),
           if (hasOrphan)
@@ -146,8 +146,11 @@ class _CostLineTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final share = total <= 0 ? 0.0 : line.cost / total;
-    final label =
-        line.missing ? line.name : '${line.name} ${amountText(line.amount)}${line.unitLabel}';
+    // 삭제된 재료는 단위가 없다. 단위가 있는데 missing이면 반제품 속 재료가 삭제된 경우
+    final label = line.unitLabel.isEmpty
+        ? line.name
+        : '${line.name} ${amountText(line.amount)}${line.unitLabel}'
+            '${line.missing ? ' · 반제품 재료 확인' : ''}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
