@@ -34,6 +34,8 @@ class _IngredientEditScreenState extends ConsumerState<IngredientEditScreen> {
   );
   late final _priceCtrl =
       TextEditingController(text: widget.ingredient?.purchasePrice.toString() ?? '');
+  late final _yieldCtrl =
+      TextEditingController(text: rateInput(widget.ingredient?.yieldRate ?? 1));
   late UnitType _unit = widget.ingredient?.unit ?? UnitType.g;
   late bool _prepared = widget.ingredient?.isPrepared ?? false;
   late final List<_SubRow> _rows = [
@@ -49,6 +51,7 @@ class _IngredientEditScreenState extends ConsumerState<IngredientEditScreen> {
     _nameCtrl.dispose();
     _amountCtrl.dispose();
     _priceCtrl.dispose();
+    _yieldCtrl.dispose();
     for (final r in _rows) {
       r.amountCtrl.dispose();
     }
@@ -62,6 +65,8 @@ class _IngredientEditScreenState extends ConsumerState<IngredientEditScreen> {
         purchaseAmount: double.tryParse(_amountCtrl.text.replaceAll(',', '').trim()) ?? 0,
         purchasePrice:
             _prepared ? 0 : int.tryParse(_priceCtrl.text.replaceAll(',', '').trim()) ?? 0,
+        // 반제품은 완성량에 손실이 이미 들어가 있어서 수율을 쓰지 않는다
+        yieldRate: _prepared ? 1 : (double.tryParse(_yieldCtrl.text.trim()) ?? 100) / 100,
         recipe: [
           if (_prepared)
             for (final r in _rows)
@@ -238,6 +243,21 @@ class _IngredientEditScreenState extends ConsumerState<IngredientEditScreen> {
                 validator: (v) {
                   final p = int.tryParse((v ?? '').replaceAll(',', '').trim());
                   return (p == null || p < 0) ? '구매가를 입력하세요' : null;
+                },
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _yieldCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: '수율',
+                  helperText: '손질 후 남는 비율. 레시피 사용량은 손질 후 양으로 입력',
+                  suffixText: '%',
+                ),
+                validator: (v) {
+                  final r = double.tryParse((v ?? '').trim());
+                  return (r == null || r <= 0 || r > 100) ? '0 초과 100 이하' : null;
                 },
                 onChanged: (_) => setState(() {}),
               ),

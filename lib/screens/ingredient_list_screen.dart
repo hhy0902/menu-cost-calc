@@ -42,7 +42,8 @@ class IngredientListScreen extends ConsumerWidget {
                 title: Text(g.name),
                 subtitle: Text(g.isPrepared
                     ? '직접 만듦 · 완성 $amount$missing'
-                    : '$amount · ${won(g.purchasePrice)}'),
+                    : '$amount · ${won(g.purchasePrice)}'
+                        '${g.yieldRate < 1 ? ' · 수율 ${percent(g.yieldRate)}' : ''}'),
                 trailing:
                     Text('${unitWon(CostCalculator.unitCostOf(g, byId))}/${g.unit.label}'),
                 onTap: () => Navigator.of(context).push(

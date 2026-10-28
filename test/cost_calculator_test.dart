@@ -23,6 +23,23 @@ void main() {
     expect(milk.unitCost, closeTo(2.8, 1e-9));
   });
 
+  test('수율이 있으면 단위당 단가 = 구매가 ÷ 구매량 ÷ 수율', () {
+    // 양파 1000g 3,000원, 손질 후 90% -> 손질된 양파 1g당 3.33원
+    const onion = Ingredient(
+        id: 'onion',
+        name: '양파',
+        unit: UnitType.g,
+        purchaseAmount: 1000,
+        purchasePrice: 3000,
+        yieldRate: 0.9);
+    expect(onion.unitCost, closeTo(3000 / 1000 / 0.9, 1e-9));
+    const menu = Menu(id: 'm', name: '볶음', price: 8000, recipe: [
+      RecipeItem(ingredientId: 'onion', amount: 90),
+    ]);
+    final cost = CostCalculator.calculate(menu, {onion.id: onion}, vatIncluded: false);
+    expect(cost.total, closeTo(300, 1e-9)); // 손질된 90g = 사 온 양파 100g 값
+  });
+
   test('메뉴 원가와 원가율', () {
     final cost = CostCalculator.calculate(latte, byId, vatIncluded: false);
     expect(cost.lines[0].cost, closeTo(560, 1e-9));

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/format.dart';
 import '../domain/cost_calculator.dart';
 import '../models/app_settings.dart';
+import '../models/menu.dart';
 import '../providers/providers.dart';
 import 'menu_edit_screen.dart';
 
@@ -37,6 +38,21 @@ class MenuDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(cost.menu.name),
         actions: [
+          IconButton(
+            tooltip: '복제',
+            icon: const Icon(Icons.copy_outlined),
+            // id 없이 넘기면 새 메뉴로 저장된다
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => MenuEditScreen(
+                menu: Menu(
+                  name: '${cost.menu.name} (복사)',
+                  price: cost.menu.price,
+                  recipe: cost.menu.recipe,
+                  channelPrices: cost.menu.channelPrices,
+                ),
+              ),
+            )),
+          ),
           IconButton(
             tooltip: '수정',
             icon: const Icon(Icons.edit_outlined),

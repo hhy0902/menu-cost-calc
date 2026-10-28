@@ -11,7 +11,7 @@ import '../providers/providers.dart';
 class MenuEditScreen extends ConsumerStatefulWidget {
   const MenuEditScreen({super.key, this.menu});
 
-  final Menu? menu; // null이면 새 메뉴
+  final Menu? menu; // null이거나 id가 비어 있으면(복제) 새 메뉴
 
   @override
   ConsumerState<MenuEditScreen> createState() => _MenuEditScreenState();
@@ -38,7 +38,7 @@ class _MenuEditScreenState extends ConsumerState<MenuEditScreen> {
   final Map<String, TextEditingController> _channelPriceCtrls = {}; // 채널 id -> 입력칸
   bool _saving = false;
 
-  bool get _isNew => widget.menu == null;
+  bool get _isNew => widget.menu == null || widget.menu!.id.isEmpty;
 
   @override
   void dispose() {
